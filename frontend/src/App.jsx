@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import JobApplyModal from './components/JobApplyModal';
 import PostJobModal from './components/PostJobModal';
@@ -14,61 +14,90 @@ import EmployerDashboardPage from './pages/EmployerDashboardPage';
 import EmployerJobsPage from './pages/EmployerJobsPage';
 import AtsPipelinePage from './pages/AtsPipelinePage';
 import TalentPoolPage from './pages/TalentPoolPage';
-import { initialJobs, initialApplications, initialSavedJobs } from './data/mockData';
+import { authAPI, jobsAPI, applicationsAPI, savedJobsAPI } from './services/api';
 
 export default function App() {
   const [currentRole, setRole] = useState('job_seeker'); // 'job_seeker' | 'employer'
-  const [activeTab, setActiveTab] = useState('landing');
-  const [jobs, setJobs] = useState(initialJobs);
-  const [applications, setApplications] = useState(initialApplications);
-  const [savedJobs, setSavedJobs] = useState(initialSavedJobs);
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('jobify_active_tab') || 'landing');
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [savedJobs, setSavedJobs] = useState([]);
   const [applyModalJob, setApplyModalJob] = useState(null);
   const [isPostJobOpen, setIsPostJobOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [activeThreadId, setActiveThreadId] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Persist active tab
+  useEffect(() => {
+    localStorage.setItem('jobify_active_tab', activeTab);
+  }, [activeTab]);
+  useEffect(() => {
+    const token = localStorage.getItem('jobify_token');
+    const storedUser = localStorage.getItem('jobify_user');
+    if (token && storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        setIsAuthenticated(true);
+        setRole(userData.role);
+        fetchDashboardData(userData.role);
+      } catch (e) {
+        localStorage.removeItem('jobify_token');
+        localStorage.removeItem('jobify_user');
+      }
+    }
+  }, []);
+
+  // Fetch all dashboard data from backend based on role
+  const fetchDashboardData = async (role) => {
+    setLoading(true);
+    try {
+      if (role === 'employer') {
+        // Fetch employer's own job postings
+        const jobsRes = await jobsAPI.myPostings();
+        setJobs(jobsRes.data || []);
+
+        // Fetch applications for employer's jobs
+        const employerJobIds = (jobsRes.data || []).map(j => j.id);
+        const allApps = [];
+        for (const jobId of employerJobIds) {
+          try {
+            const appsRes = await applicationsAPI.byJob(jobId);
+            allApps.push(...(appsRes.data || []));
+          } catch (e) {
+            console.warn(`Failed to fetch applications for job ${jobId}`, e);
+          }
+        }
+        setApplications(allApps);
+      } else {
+        // Fetch all active jobs for seeker
+        const jobsRes = await jobsAPI.list({ limit: 50 });
+        setJobs(jobsRes.data || []);
+
+        // Fetch seeker's own applications
+        const appsRes = await applicationsAPI.list();
+        setApplications(appsRes.data || []);
+
+        // Fetch seeker's saved jobs
+        const savedRes = await savedJobsAPI.list();
+        setSavedJobs(savedRes.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+      showToast('Failed to load dashboard data from server.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const savedJobIds = savedJobs.map(s => s.job_id || s.id);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3500);
-  };
-
-  const handleApplySuccess = (newApp) => {
-    const appWithId = {
-      ...newApp,
-      id: `app-${Date.now()}`,
-      created_at: new Date().toISOString()
-    };
-    setApplications([appWithId, ...applications]);
-    showToast(`Application successfully submitted to ${newApp.company_name}!`);
-  };
-
-  const handleToggleSave = (job) => {
-    const isSaved = savedJobIds.includes(job.id);
-    if (isSaved) {
-      setSavedJobs(savedJobs.filter(s => (s.job_id || s.id) !== job.id));
-      showToast('Removed from saved opportunities.');
-    } else {
-      const newSaved = {
-        id: `save-${Date.now()}`,
-        user_id: 'usr-annie',
-        job_id: job.id,
-        job_title: job.title,
-        company_name: job.company_name,
-        location: job.location,
-        job_type: job.job_type,
-        salary_range: job.salary_range,
-        created_at: new Date().toISOString()
-      };
-      setSavedJobs([newSaved, ...savedJobs]);
-      showToast('Saved opportunity to your bookmarks!');
-    }
-  };
-
-  const handleWithdrawApplication = (appId) => {
-    setApplications(applications.filter(a => a.id !== appId));
-    showToast('Application withdrawn and archived.');
   };
 
   const handleOpenMessage = (companyName) => {
@@ -84,37 +113,156 @@ export default function App() {
     setActiveTab('messages');
   };
 
-  const handleJobCreated = (newJob) => {
-    setJobs([newJob, ...jobs]);
-    showToast(`Job circular "${newJob.title}" posted successfully!`);
-    setActiveTab('employer_jobs');
-  };
-
-  const handleToggleJobStatus = (jobId) => {
-    setJobs(jobs.map(j => {
-      if (j.id === jobId) {
-        const nextStatus = j.status === 'active' ? 'closed' : 'active';
-        showToast(`Requisition "${j.title}" is now ${nextStatus}.`);
-        return { ...j, status: nextStatus };
+  const handleApplySuccess = async (newApp) => {
+    try {
+      setLoading(true);
+      const response = await applicationsAPI.create({
+        job_id: newApp.job_id,
+        resume_url: newApp.resume_url,
+        cover_letter: newApp.cover_letter,
+      });
+      const newAppData = response.data;
+      setApplications([newAppData, ...applications]);
+      showToast(`Application successfully submitted to ${newApp.company_name}!`);
+      if (currentRole === 'job_seeker') {
+        const savedRes = await savedJobsAPI.list();
+        setSavedJobs(savedRes.data || []);
       }
-      return j;
-    }));
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Application failed.';
+      showToast(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateStatus = (appId, newStatus) => {
-    setApplications(applications.map(a => {
-      if (a.id === appId) {
-        showToast(`Candidate stage updated to "${newStatus}".`);
-        return { ...a, status: newStatus };
+  const handleToggleSave = async (job) => {
+    const isSaved = savedJobIds.includes(job.id);
+    try {
+      setLoading(true);
+      if (isSaved) {
+        await savedJobsAPI.remove(job.id);
+        setSavedJobs(savedJobs.filter(s => (s.job_id || s.id) !== job.id));
+        showToast('Removed from saved opportunities.');
+      } else {
+        const response = await savedJobsAPI.save(job.id);
+        const newSaved = {
+          id: response.data.id || `save-${Date.now()}`,
+          user_id: response.data.user_id || user?.id,
+          job_id: response.data.job_id || job.id,
+          job_title: response.data.job_title || job.title,
+          company_name: response.data.company_name || job.company_name,
+          location: response.data.location || job.location,
+          job_type: response.data.job_type || job.job_type,
+          salary_range: response.data.salary_range || job.salary_range,
+          created_at: response.data.created_at || new Date().toISOString()
+        };
+        setSavedJobs([newSaved, ...savedJobs]);
+        showToast('Saved opportunity to your bookmarks!');
       }
-      return a;
-    }));
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Save failed.';
+      showToast(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLoginSuccess = (user) => {
-    setRole(user.role);
-    showToast(`Welcome ${user.full_name}!`);
-    setActiveTab(user.role === 'employer' ? 'employer_dashboard' : 'candidate_dashboard');
+  const handleWithdrawApplication = async (appId) => {
+    try {
+      setLoading(true);
+      await applicationsAPI.withdraw(appId);
+      setApplications(applications.filter(a => a.id !== appId));
+      showToast('Application withdrawn and archived.');
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Withdraw failed.';
+      showToast(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJobCreated = async (jobData) => {
+    try {
+      setLoading(true);
+      const requirements = jobData.requirements
+        ? jobData.requirements.split('\n').filter(r => r.trim().length > 0)
+        : [];
+
+      const response = await jobsAPI.create({
+        title: jobData.title,
+        description: jobData.description || 'Join our executive team driving high-impact technical initiatives.',
+        company_name: jobData.company_name,
+        location: jobData.location,
+        job_type: jobData.job_type || 'Full-Time',
+        salary_range: jobData.salary_range,
+        requirements,
+        category: jobData.category || 'General',
+      });
+      const newJob = response.data;
+      setJobs([newJob, ...jobs]);
+      showToast(`Job "${newJob.title}" published successfully!`);
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Job posting failed.';
+      showToast(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleJobStatus = async (jobId) => {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+    try {
+      setLoading(true);
+      const newStatus = job.status === 'active' ? 'closed' : 'active';
+      const response = await jobsAPI.update(jobId, { status: newStatus });
+      setJobs(jobs.map(j => j.id === jobId ? { ...j, status: response.data.status } : j));
+      showToast(`Job "${job.title}" ${newStatus === 'active' ? 'activated' : 'closed'}.`);
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Status update failed.';
+      showToast(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = async (appId, newStatus) => {
+    try {
+      setLoading(true);
+      const response = await applicationsAPI.updateStatus(appId, newStatus);
+      setApplications(apps =>
+        apps.map(a => a.id === appId ? { ...a, status: response.data.status } : a)
+      );
+      showToast(`Candidate status updated to ${newStatus}.`);
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Status update failed.';
+      showToast(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+    setRole(userData.role);
+    showToast(`Welcome ${userData.full_name}!`);
+    fetchDashboardData(userData.role);
+    setActiveTab(userData.role === 'employer' ? 'employer_dashboard' : 'candidate_dashboard');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('jobify_token');
+    localStorage.removeItem('jobify_user');
+    setUser(null);
+    setIsAuthenticated(false);
+    setRole('job_seeker');
+    setActiveTab('landing');
+    setJobs([]);
+    setApplications([]);
+    setSavedJobs([]);
+    showToast('Logged out successfully.');
   };
 
   return (
@@ -145,53 +293,10 @@ export default function App() {
         applicationsCount={applications.length}
         savedJobsCount={savedJobs.length}
         unreadMessagesCount={1}
+        user={user}
+        isAuthenticated={isAuthenticated}
+        onLogout={handleLogout}
       />
-
-      {/* Quick Navigation Drawer for Fast Testing of All Screens */}
-      <div className="fixed bottom-4 left-4 z-40 hidden md:flex items-center gap-1.5 p-1.5 rounded-full bg-surface-container-lowest/95 backdrop-blur-md border border-surface-container-high shadow-lg text-[11px] font-semibold text-on-surface-variant">
-        <span className="px-2 text-primary font-bold flex items-center gap-1">
-          <span className="material-symbols-outlined text-sm">hub</span> Seeker Pages:
-        </span>
-        <button
-          onClick={() => setActiveTab('explore')}
-          className={`px-2.5 py-1 rounded-full transition-colors ${activeTab === 'explore' ? 'bg-primary text-secondary-container font-bold' : 'hover:text-primary'}`}
-        >
-          1. Explore Jobs
-        </button>
-        <button
-          onClick={() => setActiveTab('my_applications')}
-          className={`px-2.5 py-1 rounded-full transition-colors ${activeTab === 'my_applications' || activeTab === 'applications_tracker' ? 'bg-primary text-secondary-container font-bold' : 'hover:text-primary'}`}
-        >
-          2. My Applications ({applications.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('messages')}
-          className={`px-2.5 py-1 rounded-full transition-colors ${activeTab === 'messages' ? 'bg-primary text-secondary-container font-bold' : 'hover:text-primary'}`}
-        >
-          3. Messages
-        </button>
-        <button
-          onClick={() => setActiveTab('saved_jobs')}
-          className={`px-2.5 py-1 rounded-full transition-colors ${activeTab === 'saved_jobs' ? 'bg-primary text-secondary-container font-bold' : 'hover:text-primary'}`}
-        >
-          4. Saved Jobs ({savedJobs.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('career_salary')}
-          className={`px-2.5 py-1 rounded-full transition-colors ${activeTab === 'career_salary' || activeTab === 'salary_intelligence' ? 'bg-primary text-secondary-container font-bold' : 'hover:text-primary'}`}
-        >
-          5. Career & Salary
-        </button>
-        
-        <span className="w-px h-3 bg-surface-container-high mx-1"></span>
-
-        <button
-          onClick={() => setActiveTab('candidate_dashboard')}
-          className={`px-2 py-1 rounded-full text-xs font-semibold ${activeTab === 'candidate_dashboard' ? 'bg-primary text-secondary-container font-bold' : 'hover:text-primary'}`}
-        >
-          Hub
-        </button>
-      </div>
 
       {/* Pages Container */}
       <main className="w-full">
@@ -256,6 +361,7 @@ export default function App() {
           <CandidateDashboardPage
             applications={applications}
             savedJobs={savedJobs}
+            user={user}
             onNavigate={(tab) => setActiveTab(tab)}
             onSelectJob={(job) => setApplyModalJob(job)}
           />
@@ -263,7 +369,11 @@ export default function App() {
 
         {/* Auth / Account Page */}
         {activeTab === 'auth' && (
-          <AuthPage onLoginSuccess={handleLoginSuccess} />
+          <AuthPage
+            onLoginSuccess={handleLoginSuccess}
+            isAuthenticated={isAuthenticated}
+            user={user}
+          />
         )}
 
         {/* Employer Side Pages */}

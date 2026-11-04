@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
 
 class UserRole(str, Enum):
@@ -33,6 +33,7 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     resume_url: Optional[str] = None
     bio: Optional[str] = None
+    skills: Optional[List[str]] = []
     created_at: datetime
 
 class UserProfileUpdate(BaseModel):
@@ -41,3 +42,4 @@ class UserProfileUpdate(BaseModel):
     phone: Optional[str] = None
     resume_url: Optional[str] = None
     bio: Optional[str] = None
+    skills: Optional[List[str]] = []

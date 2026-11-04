@@ -63,7 +63,7 @@ export default function MyApplicationsPage({
       </div>
 
       {/* KPI Highlights Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div 
           onClick={() => setFilterStatus('all')}
           className={`p-5 rounded-2xl border transition-all cursor-pointer ${
@@ -149,7 +149,7 @@ export default function MyApplicationsPage({
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 px-2">
+        <div className="flex items-center gap-1 flex-wrap pb-1 md:px-2">
           {[
             { id: 'all', label: 'All' },
             { id: 'interviewing', label: `Interviews (${interviewingCount})` },

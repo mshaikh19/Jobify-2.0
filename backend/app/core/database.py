@@ -1,4 +1,15 @@
 import logging
+import socket
+
+# Some campus DNS resolvers fail IPv6/AAAA lookups, which breaks pymongo's
+# default getaddrinfo() calls for MongoDB hostnames. Force IPv4 resolution.
+_original_getaddrinfo = socket.getaddrinfo
+def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    if family == 0:
+        family = socket.AF_INET
+    return _original_getaddrinfo(host, port, family, type, proto, flags)
+socket.getaddrinfo = _ipv4_getaddrinfo
+
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import settings
 
