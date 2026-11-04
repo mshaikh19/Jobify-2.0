@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
-export default function EmployerDashboardPage({ jobs, applications, onOpenPostJob, onNavigate }) {
-  const activeJobs = jobs.filter(j => j.status === 'active');
+export default function EmployerDashboardPage({ jobs = [], applications = [], onOpenPostJob, onNavigate }) {
+const activeJobs = jobs.filter(j => j.status === 'active');
   const totalApplicants = applications.length;
+  const appliedCount = applications.filter(a => a.status === 'applied').length;
+  const interviewingCount = applications.filter(a => a.status === 'interviewing').length;
+const acceptedApps = applications.filter(a => a.status === 'accepted');
+  const acceptedCount = acceptedApps.length;
+  const avgTimeToOffer = acceptedApps.length
+    ? (acceptedApps.reduce((sum, a) => sum + (new Date(a.updated_at) - new Date(a.created_at)), 0) / acceptedApps.length / (1000 * 60 * 60 * 24)).toFixed(1)
+    : 'N/A';
 
   return (
     <div className="w-full pt-24 pb-16 bg-background min-h-screen px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
@@ -60,7 +67,7 @@ export default function EmployerDashboardPage({ jobs, applications, onOpenPostJo
           <span className="font-label-caps text-[11px] uppercase font-bold text-on-surface-variant block mb-1">
             Avg Time-To-Offer
           </span>
-          <div className="font-headline-lg text-3xl font-bold text-primary">4.2 Days</div>
+          <div className="font-headline-lg text-3xl font-bold text-primary">{avgTimeToOffer} Days</div>
           <span className="text-[11px] text-secondary font-bold mt-1 block">68% faster than industry norm</span>
         </div>
 
@@ -104,7 +111,7 @@ export default function EmployerDashboardPage({ jobs, applications, onOpenPostJo
 
                 <div className="flex items-center gap-3">
                   <span className="px-2.5 py-1 rounded-full bg-surface-container-low text-xs font-bold text-on-surface">
-                    {job.applicant_count || 12} Candidates
+                    {applications.filter(a => a.job_id === job.id).length} Candidates
                   </span>
                   <button
                     onClick={() => onNavigate('ats_pipeline')}
@@ -141,26 +148,26 @@ export default function EmployerDashboardPage({ jobs, applications, onOpenPostJo
             <div className="space-y-2 text-xs">
               <div className="flex justify-between text-on-surface-variant">
                 <span>Applied / New Inflow</span>
-                <span className="font-bold text-primary">14 candidates</span>
+                <span className="font-bold text-primary">{appliedCount} candidates</span>
               </div>
               <div className="w-full bg-surface-container-low h-2 rounded-full overflow-hidden">
-                <div className="bg-primary h-full w-[80%] rounded-full"></div>
+                <div className="bg-primary h-full rounded-full" style={{ width: `${Math.round((appliedCount / (applications.length || 1)) * 100)}%` }}></div>
               </div>
 
               <div className="flex justify-between text-on-surface-variant pt-1">
                 <span>Technical Interview Loop</span>
-                <span className="font-bold text-primary">6 candidates</span>
+                <span className="font-bold text-primary">{interviewingCount} candidates</span>
               </div>
               <div className="w-full bg-surface-container-low h-2 rounded-full overflow-hidden">
-                <div className="bg-secondary-container h-full w-[45%] rounded-full"></div>
+                <div className="bg-secondary-container h-full rounded-full" style={{ width: `${Math.round((interviewingCount / (applications.length || 1)) * 100)}%` }}></div>
               </div>
 
               <div className="flex justify-between text-on-surface-variant pt-1">
                 <span>Offer Extended</span>
-                <span className="font-bold text-primary">2 candidates</span>
+                <span className="font-bold text-primary">{acceptedCount} candidates</span>
               </div>
               <div className="w-full bg-surface-container-low h-2 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full w-[20%] rounded-full"></div>
+                <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.round((acceptedCount / (applications.length || 1)) * 100)}%` }}></div>
               </div>
             </div>
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import api from '../services/api';
 
 export default function AuthPage({ onLoginSuccess }) {
   const [authMode, setAuthMode] = useState('signin'); // 'signin' | 'signup'
@@ -10,26 +11,56 @@ export default function AuthPage({ onLoginSuccess }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      if (authMode === 'signup') {
+        await api.post('/api/v1/auth/register', {
+          email,
+          password,
+          full_name: fullName,
+          role: role,
+          company_name: role === 'employer' ? companyName : undefined,
+          phone: undefined,
+        });
+      }
+
+      const response = await api.post('/api/v1/auth/json-login', {
+        email,
+        password,
+      });
+
+      const token = response.data.access_token;
+      localStorage.setItem('jobify_token', token);
+
+      const meRes = await api.get('/api/v1/auth/me');
+      const userData = meRes.data;
+      localStorage.setItem('jobify_user', JSON.stringify({ ...userData, id: userData.id || userData._id }));
+
       setMessage(`Successfully authenticated as ${role === 'job_seeker' ? 'Candidate' : 'Employer'}!`);
+
       setTimeout(() => {
         onLoginSuccess({
-          email,
-          full_name: role === 'job_seeker' ? fullName : 'Talent Director',
-          role: role,
-          company_name: role === 'employer' ? companyName : null
+          email: userData.email || email,
+          full_name: userData.full_name || (role === 'job_seeker' ? fullName : 'Talent Director'),
+          role: userData.role || role,
+          company_name: userData.company_name || (role === 'employer' ? companyName : null),
         });
       }, 700);
-    }, 800);
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || 'Authentication failed';
+      setMessage(errorMsg);
+      console.error('Auth error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="w-full min-h-[calc(100vh-80px)] pt-24 pb-12 flex items-center justify-center bg-background px-4">
+    <div className="w-full h-screen overflow-hidden flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 rounded-3xl overflow-hidden shadow-[0_24px_50px_-12px_rgba(20,48,34,0.14)] bg-surface-container-lowest border border-surface-container-high/60">
         
         {/* LEFT BRANDING / TRUST PANEL (5 Cols) matching Stitch */}
@@ -99,35 +130,6 @@ export default function AuthPage({ onLoginSuccess }) {
             </div>
           </div>
 
-          {/* Testimonial Card */}
-          <div className="relative z-10 pt-6 mt-6">
-            <div className="p-4 rounded-2xl bg-surface-container-lowest/10 backdrop-blur-md border border-surface-container-lowest/10">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1 text-secondary-container">
-                  {[...Array(5)].map((_, i) => (
-                    <span key={i} className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                  ))}
-                </div>
-                <span className="text-[10px] uppercase bg-secondary-container text-on-secondary-fixed px-2 py-0.5 rounded-full font-bold">
-                  Placed in 4.2 days
-                </span>
-              </div>
-              <p className="font-body-sm text-xs italic text-on-primary leading-relaxed">
-                "Jobify stripped out 3 weeks of useless recruiter screens. I signed an executive Staff Design offer with complete transparency."
-              </p>
-              <div className="flex items-center gap-3 mt-3">
-                <img 
-                  className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-secondary-container" 
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80" 
-                  alt="Elena Rostova" 
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-on-primary">Elena Rostova</span>
-                  <span className="text-[11px] text-on-primary-container">Staff Product Designer • Stripe Alumni</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* RIGHT INTERACTIVE AUTH CARD (7 Cols) matching Stitch */}

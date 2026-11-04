@@ -32,6 +32,19 @@ export default function SavedJobsPage({ savedJobs, onRemoveSaved, onApplyJob, on
 
   const totalSaved = savedJobs.length;
   const remoteSaved = savedJobs.filter(j => (j.job_type || '').toLowerCase().includes('remote') || (j.location || '').toLowerCase().includes('remote')).length;
+  
+  // Calculate average base bracket from saved jobs salaries
+  const salaryNums = savedJobs
+    .map(j => j.salary_range)
+    .filter(s => s && s.match(/\\$[0-9]/))
+    .map(s => {
+      const match = s.match(/\\$([0-9,]+)/);
+      return match ? parseInt(match[1].replace(/,/g, ''), 10) : 0;
+    });
+  const avgBaseBracket = salaryNums.length > 0
+    ? `${(salaryNums.reduce((a, b) => a + b, 0) / salaryNums.length).toLocaleString()}`
+    : 'Not disclosed';
+  const avgBracketDisplayed = avgBaseBracket !== 'Not disclosed' ? `${avgBaseBracket}+` : avgBaseBracket;
 
   return (
     <div className="w-full pt-24 pb-16 bg-background min-h-screen px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 animate-fadeIn">
@@ -97,7 +110,7 @@ export default function SavedJobsPage({ savedJobs, onRemoveSaved, onApplyJob, on
             <span className="text-[11px] font-bold uppercase tracking-wider">Avg Base Bracket</span>
             <span className="material-symbols-outlined text-primary text-xl">payments</span>
           </div>
-          <div className="text-2xl font-bold text-primary">$210,000+</div>
+          <div className="text-2xl font-bold text-primary">{avgBracketDisplayed}</div>
           <span className="text-[11px] text-on-surface-variant mt-0.5 block">Tier-1 Verified Packages</span>
         </div>
       </div>

@@ -8,7 +8,10 @@ export default function Navbar({
   onOpenPostJob,
   applicationsCount = 0,
   savedJobsCount = 0,
-  unreadMessagesCount = 1
+  unreadMessagesCount = 1,
+  user = null,
+  isAuthenticated = false,
+  onLogout
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -172,23 +175,34 @@ export default function Navbar({
           )}
 
           {/* User Profile / Auth Toggle */}
-          <button
-            onClick={() => handleNavClick('auth')}
-            className="flex items-center gap-2 p-1 pl-2 bg-surface-container-low hover:bg-surface-container rounded-full border border-surface-container-high transition-colors cursor-pointer"
-          >
-            <span className="hidden md:inline font-label-md text-xs font-semibold text-on-surface pr-1">
-              {currentRole === 'job_seeker' ? 'Annie Chen' : 'Vercel Talent'}
-            </span>
-            <img
-              src={
-                currentRole === 'job_seeker'
-                  ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-                  : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80'
-              }
-              alt="Profile"
-              className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/10"
-            />
-          </button>
+          {isAuthenticated && user ? (
+            <div className="flex items-center gap-3">
+              <div className="hidden md:flex flex-col items-end">
+                <span className="font-label-md text-xs font-semibold text-on-surface">{user.full_name}</span>
+                <span className="text-[10px] text-on-surface-variant font-medium capitalize">{user.role.replace('_', ' ')}</span>
+              </div>
+              <img
+                src={user.resume_url || (user.role === 'job_seeker' ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80')}
+                alt="Profile"
+                className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/10 cursor-pointer"
+              />
+              <button
+                onClick={onLogout}
+                className="p-1.5 text-on-surface-variant hover:text-red-500 hover:bg-red-container/10 rounded-full transition-colors"
+                title="Sign out"
+              >
+                <span className="material-symbols-outlined text-[16px]">logout</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => handleNavClick('auth')}
+              className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full bg-primary-container text-on-primary font-label-md text-xs font-semibold hover:bg-primary transition-all shadow-[0_4px_16px_rgba(204,242,26,0.15)] cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">login</span>
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          )}
 
           {/* Mobile Hamburger Toggle Button */}
           <button

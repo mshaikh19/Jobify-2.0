@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
-import { initialCandidates } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { usersAPI } from '../services/api';
 
 export default function TalentPoolPage({ onNavigate }) {
-  const [candidates, setCandidates] = useState(initialCandidates);
+  const [candidates, setCandidates] = useState([]);
   const [search, setSearch] = useState('');
   const [invitedIds, setInvitedIds] = useState([]);
 
-  const filtered = candidates.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.title.toLowerCase().includes(search.toLowerCase()) ||
-    c.skills.some(s => s.toLowerCase().includes(search.toLowerCase()))
-  );
+  useEffect(() => {
+    usersAPI.seekers().then(res => setCandidates(res.data || [])).catch(() => setCandidates([]));
+  }, []);
+
+  const filtered = candidates.filter(c => {
+    const name = (c.full_name || c.name || '').toLowerCase();
+    const title = (c.title || '').toLowerCase();
+    const skills = Array.isArray(c.skills) ? c.skills : [];
+    const q = search.toLowerCase();
+    return name.includes(q) || title.includes(q) || skills.some(s => (s || '').toLowerCase().includes(q));
+  });
 
   const handleInvite = (id) => {
     if (invitedIds.includes(id)) return;
@@ -60,32 +66,32 @@ export default function TalentPoolPage({ onNavigate }) {
               <div>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-3.5">
-                    <img
-                      src={cand.avatar}
-                      alt={cand.name}
-                      className="w-12 h-12 rounded-xl object-cover ring-2 ring-primary/10 shrink-0"
-                    />
-                    <div>
-                      <h3 className="font-headline-sm text-base font-bold text-primary">{cand.name}</h3>
-                      <p className="text-xs text-on-surface-variant font-medium">{cand.title}</p>
-                      <span className="text-[11px] text-on-surface-variant/80 mt-0.5 block">
-                        {cand.location} • {cand.experience}
-                      </span>
-                    </div>
+                     <img
+                       src={cand.avatar || 'https://via.placeholder.com/48'}
+                       alt={cand.full_name || cand.name}
+                       className="w-12 h-12 rounded-xl object-cover ring-2 ring-primary/10 shrink-0"
+                     />
+                     <div>
+                       <h3 className="font-headline-sm text-base font-bold text-primary">{cand.full_name || cand.name}</h3>
+                       <p className="text-xs text-on-surface-variant font-medium">{cand.title || cand.role || 'Job Seeker'}</p>
+                       <span className="text-[11px] text-on-surface-variant/80 mt-0.5 block">
+                         {cand.location || '—'} • {cand.experience || '—'}
+                       </span>
+                     </div>
                   </div>
 
                   <span className="px-2.5 py-1 rounded-full bg-secondary-container/20 text-on-secondary-container text-[10px] font-bold">
-                    {cand.status}
+                    {cand.status || 'Available'}
                   </span>
                 </div>
 
                 <p className="text-xs text-on-surface-variant/90 mt-2 leading-relaxed">
-                  {cand.bio}
+                  {cand.bio || 'No bio provided.'}
                 </p>
 
                 {/* Skills tags */}
                 <div className="flex flex-wrap gap-1.5 mt-3">
-                  {cand.skills.map((skill, idx) => (
+                   {(cand.skills || []).map((skill, idx) => (
                     <span key={idx} className="px-2.5 py-0.5 rounded-md bg-surface-container-low text-[10px] font-semibold text-on-surface-variant">
                       {skill}
                     </span>

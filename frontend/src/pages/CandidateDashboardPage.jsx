@@ -1,8 +1,11 @@
 import React from 'react';
 
-export default function CandidateDashboardPage({ applications, savedJobs, onNavigate, onSelectJob }) {
+export default function CandidateDashboardPage({ applications = [], savedJobs = [], onNavigate, onSelectJob, user }) {
+  const userName = user?.full_name || (localStorage.getItem('jobify_user') ? JSON.parse(localStorage.getItem('jobify_user')).full_name : 'Candidate');
+
   const interviewingApps = applications.filter(a => a.status === 'interviewing');
   const acceptedApps = applications.filter(a => a.status === 'accepted');
+  const nextInterview = interviewingApps[0] || null;
 
   return (
     <div className="w-full pt-24 pb-16 bg-background min-h-screen px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
@@ -15,7 +18,7 @@ export default function CandidateDashboardPage({ applications, savedJobs, onNavi
             Verified Executive Talent Profile
           </div>
           <h1 className="font-headline-lg text-2xl sm:text-3xl font-bold">
-            Welcome back, Annie Chen
+            Welcome back, {userName}
           </h1>
           <p className="text-on-primary-container text-xs sm:text-sm mt-1 max-w-xl">
             You have <strong className="text-secondary-container">{interviewingApps.length} upcoming interview loop</strong> and <strong className="text-on-primary">{acceptedApps.length} active executive offer</strong> awaiting your review.
@@ -157,26 +160,43 @@ export default function CandidateDashboardPage({ applications, savedJobs, onNavi
             <div className="flex items-center gap-2 text-secondary font-bold text-xs uppercase tracking-wider mb-2">
               <span className="material-symbols-outlined text-base">alarm</span> Next Scheduled Interview
             </div>
-            <h3 className="font-headline-sm text-base font-bold text-primary">Technical Architecture Loop</h3>
-            <p className="text-xs text-on-surface-variant mt-1">Vercel Architecture Labs • Friday, 3:00 PM EST</p>
-            
-            <div className="mt-4 p-3 rounded-xl bg-surface-container-low space-y-1.5 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-on-surface-variant">Round:</span>
-                <span className="font-bold text-primary">Staff Distributed Systems (90m)</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-on-surface-variant">Lead Interviewer:</span>
-                <span className="font-bold text-primary">Marcus Vance (VP Eng)</span>
-              </div>
-            </div>
+            {nextInterview ? (
+              <>
+                <h3 className="font-headline-sm text-base font-bold text-primary">{nextInterview.job_title}</h3>
+                <p className="text-xs text-on-surface-variant mt-1">{nextInterview.company_name} • {new Date(nextInterview.updated_at || nextInterview.created_at).toLocaleDateString()}</p>
 
-            <button
-              onClick={() => onNavigate('messages')}
-              className="mt-4 w-full py-2.5 rounded-full bg-secondary-container text-on-secondary-fixed text-xs font-bold hover:bg-secondary-fixed-dim transition-colors shadow-xs"
-            >
-              Message Hiring Lead
-            </button>
+                <div className="mt-4 p-3 rounded-xl bg-surface-container-low space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-on-surface-variant">Pipeline Stage:</span>
+                    <span className="font-bold text-primary capitalize">{nextInterview.status}</span>
+                  </div>
+                  {nextInterview.recruiter_notes && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-on-surface-variant">Notes:</span>
+                      <span className="font-bold text-primary text-right max-w-[60%] truncate">{nextInterview.recruiter_notes}</span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => onNavigate('messages')}
+                  className="mt-4 w-full py-2.5 rounded-full bg-secondary-container text-on-secondary-fixed text-xs font-bold hover:bg-secondary-fixed-dim transition-colors shadow-xs"
+                >
+                  Message Hiring Lead
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="font-headline-sm text-base font-bold text-primary">No interviews scheduled</h3>
+                <p className="text-xs text-on-surface-variant mt-1">You have no applications currently in the interview stage.</p>
+                <button
+                  onClick={() => onNavigate('explore')}
+                  className="mt-4 w-full py-2.5 rounded-full bg-secondary-container text-on-secondary-fixed text-xs font-bold hover:bg-secondary-fixed-dim transition-colors shadow-xs"
+                >
+                  Find New Roles
+                </button>
+              </>
+            )}
           </div>
 
           {/* Quick Hub Links */}
